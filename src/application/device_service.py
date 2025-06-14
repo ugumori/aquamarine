@@ -1,9 +1,9 @@
+from datetime import datetime, UTC
+from typing import List, Optional
+from application.repositories import DeviceRepository
+from hardware.gpio_controller import gpio_controller
+from application.models import Device as DeviceDTO, DeviceRegisterRequest, DeviceRegisterResponse
 import uuid
-from typing import List
-
-from src.application.repositories import DeviceRepository
-from src.hardware.gpio_controller import gpio_controller
-from src.application.models import Device as DeviceDTO, DeviceRegisterRequest, DeviceRegisterResponse
 
 class DeviceService:
     def __init__(self, repository: DeviceRepository):

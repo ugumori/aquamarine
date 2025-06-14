@@ -1,9 +1,8 @@
 from datetime import datetime, UTC
 from sqlalchemy.orm import Session
-from typing import List, Optional
-
-from src.application.repositories import DeviceRepository
-from src.infrastructure.models import Device
+from typing import List, Optional, Tuple
+from application.repositories import DeviceRepository
+from infrastructure.models import Device
 
 class SQLAlchemyDeviceRepository(DeviceRepository):
     def __init__(self, session: Session):
