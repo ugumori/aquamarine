@@ -41,9 +41,9 @@ class DeviceService:
         )
 
     def get_device_list(self) -> List[DeviceDTO]:
-        logger.info("Getting device list")
+        print("Getting device list")
         devices = self.repository.find_all()
-        logger.debug(f"Found {len(devices)} devices")
+        print(f"Found {len(devices)} devices")
         return [
             DeviceDTO(
                 device_id=device.device_id,
