@@ -33,7 +33,7 @@ def get_device(device_id: str, service: DeviceService = Depends(get_device_servi
         logger.error(f"Failed to get device: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
     
-@app.get("/device/list", response_model=DeviceListResponse)
+@app.get("/devices", response_model=DeviceListResponse)
 def get_device_list(service: DeviceService = Depends(get_device_service)):
     logger.info("Getting device list")
     try:
