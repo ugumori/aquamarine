@@ -8,8 +8,6 @@ class GPIOController:
         self._pin_states: Dict[int, bool] = {}
 
     def setup_pin(self, pin_number: int) -> None:
-        if pin_number in self._used_pins:
-            raise ValueError(f"GPIO pin {pin_number} is already in use")
         GPIO.setup(pin_number, GPIO.OUT)
         self._used_pins.add(pin_number)
         self._pin_states[pin_number] = False
