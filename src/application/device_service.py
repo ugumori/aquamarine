@@ -2,7 +2,7 @@ from datetime import datetime, UTC
 from typing import List, Optional
 from application.repositories import DeviceRepository
 from hardware.gpio_controller import gpio_controller
-from application.models import Device as DeviceDTO, DeviceRegisterRequest, DeviceRegisterResponse
+from application.models import DeviceDTO, DeviceRegisterRequest, DeviceRegisterResponse
 import uuid
 
 class DeviceService:
@@ -25,27 +25,26 @@ class DeviceService:
         if not device:
             raise ValueError("Failed to create device")
 
-        device_id, device_name, gpio_number, created_at, updated_at = device
         return DeviceRegisterResponse(
-            device_id=device_id,
-            device_name=device_name,
-            gpio_number=gpio_number,
-            created_at=created_at,
-            updated_at=updated_at
+            device_id=device.device_id,
+            device_name=device.device_name,
+            gpio_number=device.gpio_number,
+            created_at=device.created_at,
+            updated_at=device.updated_at
         )
 
     def get_device_list(self) -> List[DeviceDTO]:
         devices = self.repository.find_all()
         return [
             DeviceDTO(
-                device_id=device_id,
-                device_name=device_name,
-                gpio_number=gpio_number,
-                is_on=gpio_controller.get_status(gpio_number),
-                created_at=created_at,
-                updated_at=updated_at
+                device_id=device.device_id,
+                device_name=device.device_name,
+                gpio_number=device.gpio_number,
+                is_on=gpio_controller.get_status(device.gpio_number),
+                created_at=device.created_at,
+                updated_at=device.updated_at
             )
-            for device_id, device_name, gpio_number, created_at, updated_at in devices
+            for device in devices
         ]
 
     def get_device(self, device_id: str) -> DeviceDTO:
@@ -53,14 +52,13 @@ class DeviceService:
         if not device:
             raise ValueError(f"Device {device_id} not found")
 
-        device_id, device_name, gpio_number, created_at, updated_at = device
         return DeviceDTO(
-            device_id=device_id,
-            device_name=device_name,
-            gpio_number=gpio_number,
-            is_on=gpio_controller.get_status(gpio_number),
-            created_at=created_at,
-            updated_at=updated_at
+            device_id=device.device_id,
+            device_name=device.device_name,
+            gpio_number=device.gpio_number,
+            is_on=gpio_controller.get_status(device.gpio_number),
+            created_at=device.created_at,
+            updated_at=device.updated_at
         )
 
     def turn_on_device(self, device_id: str) -> None:
@@ -68,9 +66,8 @@ class DeviceService:
         if not device:
             raise ValueError(f"Device {device_id} not found")
         
-        _, _, gpio_number, _, _ = device
         try:
-            gpio_controller.turn_on(gpio_number)
+            gpio_controller.turn_on(device.gpio_number)
             self.repository.update_timestamp(device_id)
         except ValueError as e:
             raise ValueError(f"Failed to turn on device: {str(e)}")
@@ -80,9 +77,8 @@ class DeviceService:
         if not device:
             raise ValueError(f"Device {device_id} not found")
         
-        _, _, gpio_number, _, _ = device
         try:
-            gpio_controller.turn_off(gpio_number)
+            gpio_controller.turn_off(device.gpio_number)
             self.repository.update_timestamp(device_id)
         except ValueError as e:
             raise ValueError(f"Failed to turn off device: {str(e)}")
@@ -92,8 +88,7 @@ class DeviceService:
         if not device:
             raise ValueError(f"Device {device_id} not found")
         
-        _, _, gpio_number, _, _ = device
         try:
-            return gpio_controller.get_status(gpio_number)
+            return gpio_controller.get_status(device.gpio_number)
         except ValueError as e:
             raise ValueError(f"Failed to get device status: {str(e)}") 
