@@ -10,6 +10,7 @@ from hardware.gpio_controller import gpio_controller
 logger = logging.getLogger(__name__)
 app = FastAPI()
 
+
 def get_device_service(db: Session = Depends(get_db)) -> DeviceService:
     repository = SQLAlchemyDeviceRepository(db)
     return DeviceService(repository)
