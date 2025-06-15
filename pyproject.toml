@@ -54,7 +54,7 @@ changelog = "https://github.com/ugumori/aquamarine/blob/master/changelog.md"
 homepage = "https://github.com/ugumori/aquamarine"
 
 [tool.setuptools]
-packages = ["aquamarine", "infrastructure", "application", "presentation", "hardware"]
+packages = ["aquamarine", "infrastructure", "application", "presentation", "hardware", "log"]
 package-dir = {"" = "src"}
 
 [tool.setuptools.package-data]
