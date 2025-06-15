@@ -1,13 +1,12 @@
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
-import logging
 from infrastructure.database import get_db
 from infrastructure.repositories import SQLAlchemyDeviceRepository
 from application.device_service import DeviceService
 from application.models import DeviceRegisterRequest, DeviceRegisterResponse, DeviceListResponse
 from hardware.gpio_controller import gpio_controller
+from log import logger
 
-logger = logging.getLogger(__name__)
 app = FastAPI()
 
 

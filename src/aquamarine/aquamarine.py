@@ -1,17 +1,8 @@
 """Main module."""
 import uvicorn
-import logging
-
 from infrastructure.models import Base
 from infrastructure.database import engine
-
-# ログの設定
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-
-logger = logging.getLogger(__name__)
+from log import logger
 
 # データベースのテーブルを作成
 Base.metadata.create_all(bind=engine)
@@ -23,8 +14,9 @@ def main():
         host="localhost",
         port=8000,
         reload=True,
-        log_level="debug"
-    ) 
+        log_level="debug",
+        access_log=True
+    )
 
 if __name__ == "__main__":
     main()

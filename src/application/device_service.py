@@ -1,12 +1,10 @@
 from datetime import datetime, UTC
 from typing import List, Optional
-import logging
 from application.repositories import DeviceRepository
 from hardware.gpio_controller import gpio_controller
 from application.models import DeviceDTO, DeviceRegisterRequest, DeviceRegisterResponse
+from log import logger
 import uuid
-
-logger = logging.getLogger(__name__)
 
 class DeviceService:
     def __init__(self, repository: DeviceRepository):
@@ -41,9 +39,9 @@ class DeviceService:
         )
 
     def get_device_list(self) -> List[DeviceDTO]:
-        print("Getting device list")
+        logger.info("Getting device list")
         devices = self.repository.find_all()
-        print(f"Found {len(devices)} devices")
+        logger.debug(f"Found {len(devices)} devices")
         return [
             DeviceDTO(
                 device_id=device.device_id,
