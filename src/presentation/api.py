@@ -29,8 +29,11 @@ def get_device(device_id: str, service: DeviceService = Depends(get_device_servi
     
 @app.get("/device/list", response_model=DeviceListResponse)
 def get_device_list(service: DeviceService = Depends(get_device_service)):
-    devices = service.get_device_list()
-    return DeviceListResponse(devices=devices)
+    try:
+        devices = service.get_device_list()
+        return DeviceListResponse(devices=devices)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/device/{device_id}/on")
 def turn_on_device(device_id: str, service: DeviceService = Depends(get_device_service)):
