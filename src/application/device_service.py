@@ -4,6 +4,9 @@ from application.repositories import DeviceRepository
 from hardware.gpio_controller import gpio_controller
 from application.models import DeviceDTO, DeviceRegisterRequest, DeviceRegisterResponse
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 class DeviceService:
     def __init__(self, repository: DeviceRepository):
@@ -35,6 +38,7 @@ class DeviceService:
 
     def get_device_list(self) -> List[DeviceDTO]:
         devices = self.repository.find_all()
+        logger.debug(f"devices: {devices}")
         return [
             DeviceDTO(
                 device_id=device.device_id,
