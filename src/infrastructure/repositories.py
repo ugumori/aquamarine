@@ -1,4 +1,4 @@
-from datetime import datetime, UTC
+from datetime import datetime
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from application.repositories import DeviceRepository
@@ -27,5 +27,5 @@ class SQLAlchemyDeviceRepository(DeviceRepository):
     def update_timestamp(self, device_id: str) -> None:
         device = self.session.query(Device).filter(Device.device_id == device_id).first()
         if device:
-            device.updated_at = datetime.now(UTC)
-            self.session.commit() 
+            device.updated_at = datetime.now()
+            self.session.commit()

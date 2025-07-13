@@ -10,7 +10,7 @@ FastAPI
 ## プロジェクトの構成
 - src/presentation/
     - HTTPサーバーのエンドポイントを持つ
-    - HTTPサーバーはlocalhost:80で起動します。
+    - HTTPサーバーはlocalhost:8080で起動します。
 - src/application/
     - アプリケーションロジックを持つ
         - デバイスの登録、デバイスの一覧取得、デバイスの状態取得、デバイスのOn/Off操作を行う
@@ -23,8 +23,8 @@ FastAPI
         - PostgreSQLの接続情報（例: ホスト名、ユーザー名、パスワード、DB名）は.envファイルに記載する
     - AWSの操作を行う
         - boto3を使用する
-- src/main.py
-    - アプリケーションのエントリーポイント
+- src/aquamarine.py
+    - アプリケーションのエントリーポイント、main関数
 
 
 ## 構成の依存関係
@@ -97,7 +97,7 @@ FastAPI は非同期サーバだが、一方でGPIO制御やDBアクセスは同
   - デバイスが存在する場合、GPIOがすでに使用中などのケースでは400 Bad Requestとする
 
 ## セキュリティ
-FastAPI を localhost:80 で起動だが、これは開発用途前提である。
+FastAPI を localhost:8080 で起動だが、これは開発用途前提である。
 本番環境は後の課題とする。
 
 ## デプロイ方法

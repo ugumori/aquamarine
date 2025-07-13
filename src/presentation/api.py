@@ -1,98 +1,86 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy.orm import Session
+from application.services import DeviceService, GPIOService
+from application.models import (
+    DeviceRegisterRequest, DeviceRegisterResponse, DeviceListResponse,
+    DeviceStatusResponse, GPIOStatusResponse
+)
 from infrastructure.database import get_db
 from infrastructure.repositories import SQLAlchemyDeviceRepository
-from application.device_service import DeviceService
-from application.models import DeviceRegisterRequest, DeviceRegisterResponse, DeviceListResponse
-from hardware.gpio_controller import gpio_controller
-from log import logger
+from hardware.gpio_controller import RaspberryPiGPIOController, MockGPIOController
+import os
 
-app = FastAPI()
+app = FastAPI(title="Aquamarine IoT API", version="1.0.0")
 
+# GPIO Controller の選択
+def get_gpio_controller():
+    if os.getenv("ENVIRONMENT") == "test":
+        return MockGPIOController()
+    else:
+        return RaspberryPiGPIOController()
+
+gpio_controller = get_gpio_controller()
 
 def get_device_service(db: Session = Depends(get_db)) -> DeviceService:
-    repository = SQLAlchemyDeviceRepository(db)
-    return DeviceService(repository)
+    device_repository = SQLAlchemyDeviceRepository(db)
+    return DeviceService(device_repository, gpio_controller)
 
-@app.post("/device", response_model=DeviceRegisterResponse)
-def register_device(request: DeviceRegisterRequest, service: DeviceService = Depends(get_device_service)):
-    logger.info(f"Registering device: {request.device_name}")
-    try:
-        return service.register_device(request)
-    except ValueError as e:
-        logger.error(f"Failed to register device: {str(e)}")
-        raise HTTPException(status_code=400, detail=str(e))
+def get_gpio_service() -> GPIOService:
+    return GPIOService(gpio_controller)
 
-@app.get("/device/{device_id}")
-def get_device(device_id: str, service: DeviceService = Depends(get_device_service)):
-    logger.info(f"Getting device: {device_id}")
-    try:
-        status = service.get_device_status(device_id)
-        return {"is_on": status}
-    except ValueError as e:
-        logger.error(f"Failed to get device: {str(e)}")
-        raise HTTPException(status_code=400, detail=str(e))
-    
-@app.get("/devices", response_model=DeviceListResponse)
+@app.post("/device/register", response_model=DeviceRegisterResponse)
+def register_device(
+    request: DeviceRegisterRequest,
+    service: DeviceService = Depends(get_device_service)
+):
+    return service.register_device(request)
+
+@app.get("/device/list", response_model=DeviceListResponse)
 def get_device_list(service: DeviceService = Depends(get_device_service)):
-    logger.info("Getting device list")
-    try:
-        devices = service.get_device_list()
-        logger.debug(f"Found {len(devices)} devices")
-        return DeviceListResponse(devices=devices)
-    except ValueError as e:
-        logger.error(f"Failed to get device list: {str(e)}")
-        raise HTTPException(status_code=400, detail=str(e))
+    return service.get_device_list()
 
-@app.post("/device/{device_id}/on")
-def turn_on_device(device_id: str, service: DeviceService = Depends(get_device_service)):
-    logger.info(f"Turning on device: {device_id}")
-    try:
-        service.turn_on_device(device_id)
-        return {"message": "Device turned on successfully"}
-    except ValueError as e:
-        logger.error(f"Failed to turn on device: {str(e)}")
-        raise HTTPException(status_code=400, detail=str(e))
+@app.get("/device/{device_id}/status", response_model=DeviceStatusResponse)
+def get_device_status(
+    device_id: str,
+    service: DeviceService = Depends(get_device_service)
+):
+    return service.get_device_status(device_id)
 
-@app.post("/device/{device_id}/off")
-def turn_off_device(device_id: str, service: DeviceService = Depends(get_device_service)):
-    logger.info(f"Turning off device: {device_id}")
-    try:
-        service.turn_off_device(device_id)
-        return {"message": "Device turned off successfully"}
-    except ValueError as e:
-        logger.error(f"Failed to turn off device: {str(e)}")
-        raise HTTPException(status_code=400, detail=str(e))
+@app.post("/device/{device_id}/on", response_model=DeviceStatusResponse)
+def turn_device_on(
+    device_id: str,
+    service: DeviceService = Depends(get_device_service)
+):
+    return service.turn_device_on(device_id)
 
-@app.post("/GPIO/{gpio_number}/on")
-def turn_on_gpio(gpio_number: int):
-    logger.info(f"Turning on GPIO: {gpio_number}")
-    try:
-        gpio_controller.setup_pin(gpio_number)
-        gpio_controller.turn_on(gpio_number)
-        return {"message": "GPIO turned on successfully"}
-    except ValueError as e:
-        logger.error(f"Failed to turn on GPIO: {str(e)}")
-        raise HTTPException(status_code=400, detail=str(e))
+@app.post("/device/{device_id}/off", response_model=DeviceStatusResponse)
+def turn_device_off(
+    device_id: str,
+    service: DeviceService = Depends(get_device_service)
+):
+    return service.turn_device_off(device_id)
 
-@app.post("/GPIO/{gpio_number}/off")
-def turn_off_gpio(gpio_number: int):
-    logger.info(f"Turning off GPIO: {gpio_number}")
-    try:
-        gpio_controller.setup_pin(gpio_number)
-        gpio_controller.turn_off(gpio_number)
-        return {"message": "GPIO turned off successfully"}
-    except ValueError as e:
-        logger.error(f"Failed to turn off GPIO: {str(e)}")
-        raise HTTPException(status_code=400, detail=str(e))
+@app.post("/GPIO/{gpio_number}/on", response_model=GPIOStatusResponse)
+def turn_gpio_on(
+    gpio_number: int,
+    service: GPIOService = Depends(get_gpio_service)
+):
+    return service.turn_gpio_on(gpio_number)
 
-@app.get("/GPIO/{gpio_number}/status")
-def get_gpio_status(gpio_number: int):
-    logger.info(f"Getting GPIO status: {gpio_number}")
-    try:
-        gpio_controller.setup_pin(gpio_number)
-        status = gpio_controller.get_status(gpio_number)
-        return {"is_on": status}
-    except ValueError as e:
-        logger.error(f"Failed to get GPIO status: {str(e)}")
-        raise HTTPException(status_code=400, detail=str(e)) 
+@app.post("/GPIO/{gpio_number}/off", response_model=GPIOStatusResponse)
+def turn_gpio_off(
+    gpio_number: int,
+    service: GPIOService = Depends(get_gpio_service)
+):
+    return service.turn_gpio_off(gpio_number)
+
+@app.get("/GPIO/{gpio_number}/status", response_model=GPIOStatusResponse)
+def get_gpio_status(
+    gpio_number: int,
+    service: GPIOService = Depends(get_gpio_service)
+):
+    return service.get_gpio_status(gpio_number)
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}

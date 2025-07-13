@@ -1,38 +1,89 @@
-import RPi.GPIO as GPIO
-from typing import Dict, Set
+import os
+from abc import ABC, abstractmethod
 
-class GPIOController:
-    def __init__(self):
-        GPIO.setmode(GPIO.BCM)
-        self._used_pins: Set[int] = set()
-        self._pin_states: Dict[int, bool] = {}
-
+class GPIOController(ABC):
+    @abstractmethod
     def setup_pin(self, pin_number: int) -> None:
-        GPIO.setup(pin_number, GPIO.OUT)
-        self._used_pins.add(pin_number)
-        self._pin_states[pin_number] = False
-
+        pass
+    
+    @abstractmethod
     def turn_on(self, pin_number: int) -> None:
-        if pin_number not in self._used_pins:
-            raise ValueError(f"GPIO pin {pin_number} is not set up")
-        GPIO.output(pin_number, GPIO.HIGH)
-        self._pin_states[pin_number] = True
-
+        pass
+    
+    @abstractmethod
     def turn_off(self, pin_number: int) -> None:
-        if pin_number not in self._used_pins:
-            raise ValueError(f"GPIO pin {pin_number} is not set up")
-        GPIO.output(pin_number, GPIO.LOW)
-        self._pin_states[pin_number] = False
-
+        pass
+    
+    @abstractmethod
     def get_status(self, pin_number: int) -> bool:
-        if pin_number not in self._used_pins:
-            raise ValueError(f"GPIO pin {pin_number} is not set up")
+        pass
+
+class RaspberryPiGPIOController(GPIOController):
+    def __init__(self):
+        self._pin_states = {}
+        # 実際のRaspberry Pi環境でのみGPIOライブラリを使用
+        self._is_raspberry_pi = self._check_raspberry_pi()
+        if self._is_raspberry_pi:
+            try:
+                import RPi.GPIO as GPIO
+                self._GPIO = GPIO
+                self._GPIO.setmode(GPIO.BCM)
+                self._GPIO.setwarnings(False)
+            except ImportError:
+                self._is_raspberry_pi = False
+    
+    def _check_raspberry_pi(self) -> bool:
+        try:
+            with open('/proc/cpuinfo', 'r') as f:
+                cpuinfo = f.read()
+            return 'BCM' in cpuinfo or 'Raspberry Pi' in cpuinfo
+        except FileNotFoundError:
+            return False
+    
+    def setup_pin(self, pin_number: int) -> None:
+        if self._is_raspberry_pi:
+            self._GPIO.setup(pin_number, self._GPIO.OUT)
+        self._pin_states[pin_number] = False
+    
+    def turn_on(self, pin_number: int) -> None:
+        if pin_number not in self._pin_states:
+            self.setup_pin(pin_number)
+        
+        if self._is_raspberry_pi:
+            self._GPIO.output(pin_number, self._GPIO.HIGH)
+        self._pin_states[pin_number] = True
+    
+    def turn_off(self, pin_number: int) -> None:
+        if pin_number not in self._pin_states:
+            self.setup_pin(pin_number)
+        
+        if self._is_raspberry_pi:
+            self._GPIO.output(pin_number, self._GPIO.LOW)
+        self._pin_states[pin_number] = False
+    
+    def get_status(self, pin_number: int) -> bool:
+        if pin_number not in self._pin_states:
+            self.setup_pin(pin_number)
         return self._pin_states[pin_number]
 
-    def cleanup(self) -> None:
-        GPIO.cleanup()
-        self._used_pins.clear()
-        self._pin_states.clear()
-
-# シングルトンインスタンス
-gpio_controller = GPIOController() 
+class MockGPIOController(GPIOController):
+    def __init__(self):
+        self._pin_states = {}
+    
+    def setup_pin(self, pin_number: int) -> None:
+        self._pin_states[pin_number] = False
+    
+    def turn_on(self, pin_number: int) -> None:
+        if pin_number not in self._pin_states:
+            self.setup_pin(pin_number)
+        self._pin_states[pin_number] = True
+    
+    def turn_off(self, pin_number: int) -> None:
+        if pin_number not in self._pin_states:
+            self.setup_pin(pin_number)
+        self._pin_states[pin_number] = False
+    
+    def get_status(self, pin_number: int) -> bool:
+        if pin_number not in self._pin_states:
+            self.setup_pin(pin_number)
+        return self._pin_states[pin_number]

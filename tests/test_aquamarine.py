@@ -3,22 +3,19 @@
 """Tests for `aquamarine` package."""
 
 import pytest
+import sys
+import os
 
+# src ディレクトリを Python パスに追加
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from aquamarine import aquamarine
+def test_import_aquamarine():
+    """aquamarine パッケージのインポートテスト"""
+    import aquamarine
+    assert aquamarine is not None
 
-
-@pytest.fixture
-def response():
-    """Sample pytest fixture.
-
-    See more at: http://doc.pytest.org/en/latest/fixture.html
-    """
-    # import requests
-    # return requests.get('https://github.com/audreyr/cookiecutter-pypackage')
-
-
-def test_content(response):
-    """Sample pytest test function with the pytest fixture as an argument."""
-    # from bs4 import BeautifulSoup
-    # assert 'GitHub' in BeautifulSoup(response.content).title.string
+def test_import_main():
+    """メインモジュールのインポートテスト"""
+    import aquamarine
+    assert hasattr(aquamarine, 'main')
+    assert callable(aquamarine.main)
