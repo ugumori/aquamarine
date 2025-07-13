@@ -3,7 +3,8 @@ from sqlalchemy.orm import Session
 from application.services import DeviceService, GPIOService
 from application.models import (
     DeviceRegisterRequest, DeviceRegisterResponse, DeviceListResponse,
-    DeviceStatusResponse, GPIOStatusResponse, DeviceDeleteResponse
+    DeviceStatusResponse, GPIOStatusResponse, DeviceDeleteResponse,
+    DeviceUpdateRequest, DeviceUpdateResponse
 )
 from infrastructure.database import get_db
 from infrastructure.repositories import SQLAlchemyDeviceRepository
@@ -66,6 +67,14 @@ def delete_device(
     service: DeviceService = Depends(get_device_service)
 ):
     return service.delete_device(device_id)
+
+@app.put("/device/{device_id}", response_model=DeviceUpdateResponse)
+def update_device(
+    device_id: str,
+    request: DeviceUpdateRequest,
+    service: DeviceService = Depends(get_device_service)
+):
+    return service.update_device(device_id, request)
 
 @app.post("/GPIO/{gpio_number}/on", response_model=GPIOStatusResponse)
 def turn_gpio_on(

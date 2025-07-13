@@ -22,3 +22,7 @@ class DeviceRepository(ABC):
     @abstractmethod
     def delete(self, device_id: str) -> bool:
         pass
+    
+    @abstractmethod
+    def update_device(self, device_id: str, device_name: Optional[str] = None, gpio_number: Optional[int] = None) -> bool:
+        pass

@@ -212,3 +212,137 @@ def test_delete_device_not_found(client):
     # 検証
     assert response.status_code == 404
     assert "Device not found" in response.json()["detail"]
+
+def test_update_device_name_only(client, test_db):
+    """デバイス名のみ更新のテスト"""
+    # テストデバイスを作成
+    device = Device(
+        device_id="test-device",
+        device_name="Original Device",
+        gpio_number=18,
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    test_db.add(device)
+    test_db.commit()
+    
+    # 実行
+    update_data = {"device_name": "Updated Device"}
+    response = client.put("/device/test-device", json=update_data)
+    
+    # 検証
+    assert response.status_code == 200
+    data = response.json()
+    assert data["device_name"] == "Updated Device"
+    assert data["gpio_number"] == 18  # GPIO番号は変更されない
+    assert data["device_id"] == "test-device"
+
+def test_update_gpio_only(client, test_db):
+    """GPIO番号のみ更新のテスト"""
+    # テストデバイスを作成
+    device = Device(
+        device_id="test-device",
+        device_name="Test Device",
+        gpio_number=18,
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    test_db.add(device)
+    test_db.commit()
+    
+    # 実行
+    update_data = {"gpio_number": 19}
+    response = client.put("/device/test-device", json=update_data)
+    
+    # 検証
+    assert response.status_code == 200
+    data = response.json()
+    assert data["device_name"] == "Test Device"  # デバイス名は変更されない
+    assert data["gpio_number"] == 19
+    assert data["device_id"] == "test-device"
+
+def test_update_both_name_and_gpio(client, test_db):
+    """デバイス名とGPIO番号両方更新のテスト"""
+    # テストデバイスを作成
+    device = Device(
+        device_id="test-device",
+        device_name="Original Device",
+        gpio_number=18,
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    test_db.add(device)
+    test_db.commit()
+    
+    # 実行
+    update_data = {"device_name": "Updated Device", "gpio_number": 20}
+    response = client.put("/device/test-device", json=update_data)
+    
+    # 検証
+    assert response.status_code == 200
+    data = response.json()
+    assert data["device_name"] == "Updated Device"
+    assert data["gpio_number"] == 20
+    assert data["device_id"] == "test-device"
+
+def test_update_device_no_parameters(client, test_db):
+    """更新パラメータなしのテスト"""
+    # テストデバイスを作成
+    device = Device(
+        device_id="test-device",
+        device_name="Test Device",
+        gpio_number=18,
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    test_db.add(device)
+    test_db.commit()
+    
+    # 実行
+    update_data = {}
+    response = client.put("/device/test-device", json=update_data)
+    
+    # 検証
+    assert response.status_code == 400
+    assert "No update parameters provided" in response.json()["detail"]
+
+def test_update_device_not_found(client):
+    """存在しないデバイス更新のテスト"""
+    # 実行
+    update_data = {"device_name": "Updated Device"}
+    response = client.put("/device/non-existent", json=update_data)
+    
+    # 検証
+    assert response.status_code == 404
+    assert "Device not found" in response.json()["detail"]
+
+def test_update_device_gpio_conflict(client, test_db):
+    """GPIO競合エラーのテスト"""
+    # 既存デバイス1を作成
+    existing_device = Device(
+        device_id="existing-device",
+        device_name="Existing Device",
+        gpio_number=19,
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    test_db.add(existing_device)
+    
+    # 更新対象デバイスを作成
+    target_device = Device(
+        device_id="target-device",
+        device_name="Target Device",
+        gpio_number=18,
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    test_db.add(target_device)
+    test_db.commit()
+    
+    # 実行（既存のGPIO 19に変更しようとする）
+    update_data = {"gpio_number": 19}
+    response = client.put("/device/target-device", json=update_data)
+    
+    # 検証
+    assert response.status_code == 400
+    assert "GPIO 19 is already in use" in response.json()["detail"]

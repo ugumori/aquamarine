@@ -5,7 +5,7 @@ from application.repositories import DeviceRepository
 from application.models import (
     DeviceRegisterRequest, DeviceRegisterResponse, DeviceModel,
     DeviceListResponse, DeviceStatusResponse, GPIOStatusResponse,
-    DeviceDeleteResponse
+    DeviceDeleteResponse, DeviceUpdateRequest, DeviceUpdateResponse
 )
 from hardware.gpio_controller import GPIOController
 from infrastructure.models import Device
@@ -118,6 +118,53 @@ class DeviceService:
         return DeviceDeleteResponse(
             message="Device deleted successfully",
             device_id=device_id
+        )
+    
+    def update_device(self, device_id: str, request: DeviceUpdateRequest) -> DeviceUpdateResponse:
+        # 更新パラメータが何も指定されていない場合はエラー
+        if request.device_name is None and request.gpio_number is None:
+            raise HTTPException(status_code=400, detail="No update parameters provided")
+        
+        # デバイスが存在するかチェック
+        device = self.device_repository.find_by_id(device_id)
+        if not device:
+            raise HTTPException(status_code=404, detail="Device not found")
+        
+        # GPIO番号の競合をチェック（GPIO番号が更新される場合のみ）
+        if request.gpio_number is not None and request.gpio_number != device.gpio_number:
+            devices = self.device_repository.find_all()
+            for existing_device in devices:
+                if existing_device.gpio_number == request.gpio_number and existing_device.device_id != device_id:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"GPIO {request.gpio_number} is already in use"
+                    )
+        
+        # デバイスを更新
+        success = self.device_repository.update_device(
+            device_id=device_id,
+            device_name=request.device_name,
+            gpio_number=request.gpio_number
+        )
+        
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to update device")
+        
+        # GPIO番号が変更された場合、新しいピンを初期化
+        if request.gpio_number is not None and request.gpio_number != device.gpio_number:
+            self.gpio_controller.setup_pin(request.gpio_number)
+        
+        # 更新されたデバイスを取得
+        updated_device = self.device_repository.find_by_id(device_id)
+        if not updated_device:
+            raise HTTPException(status_code=500, detail="Failed to retrieve updated device")
+        
+        return DeviceUpdateResponse(
+            device_id=updated_device.device_id,
+            device_name=updated_device.device_name,
+            gpio_number=updated_device.gpio_number,
+            created_at=updated_device.created_at,
+            updated_at=updated_device.updated_at
         )
 
 class GPIOService:

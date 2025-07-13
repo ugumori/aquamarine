@@ -1,6 +1,6 @@
 from datetime import datetime
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 
 class DeviceRegisterRequest(BaseModel):
     device_name: str
@@ -37,3 +37,14 @@ class GPIOStatusResponse(BaseModel):
 class DeviceDeleteResponse(BaseModel):
     message: str
     device_id: str
+
+class DeviceUpdateRequest(BaseModel):
+    device_name: Optional[str] = None
+    gpio_number: Optional[int] = None
+
+class DeviceUpdateResponse(BaseModel):
+    device_id: str
+    device_name: str
+    gpio_number: int
+    created_at: datetime
+    updated_at: datetime

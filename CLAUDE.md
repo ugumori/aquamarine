@@ -139,4 +139,5 @@ PYTHONPATH=src python -m pytest
     - 包括的なテストケース（正常系、異常系、境界値）を作成する
     - Red-Green-Refactor-Validationサイクルで実装
     - 既存の基盤コードとの整合性確保
-3. RasberryPI上で動作確認をする
+3. RasberryPI上でテスト実行する
+4. RasberryPI上で動作確認する

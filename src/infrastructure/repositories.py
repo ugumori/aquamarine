@@ -37,3 +37,15 @@ class SQLAlchemyDeviceRepository(DeviceRepository):
             self.session.commit()
             return True
         return False
+
+    def update_device(self, device_id: str, device_name: Optional[str] = None, gpio_number: Optional[int] = None) -> bool:
+        device = self.session.query(Device).filter(Device.device_id == device_id).first()
+        if device:
+            if device_name is not None:
+                device.device_name = device_name
+            if gpio_number is not None:
+                device.gpio_number = gpio_number
+            device.updated_at = datetime.now()
+            self.session.commit()
+            return True
+        return False
