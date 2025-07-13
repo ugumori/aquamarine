@@ -132,3 +132,11 @@ cd /home/rava/projects/aquamarine
 source venv/bin/activate
 PYTHONPATH=src python -m pytest
 ```
+
+## 推奨するタスク対応手順
+1. タスクの実行計画を立てる
+2. TDDで開発する
+    - 包括的なテストケース（正常系、異常系、境界値）を作成する
+    - Red-Green-Refactor-Validationサイクルで実装
+    - 既存の基盤コードとの整合性確保
+3. RasberryPI上で動作確認をする

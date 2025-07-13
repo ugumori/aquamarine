@@ -4,7 +4,8 @@ from fastapi import HTTPException
 from application.repositories import DeviceRepository
 from application.models import (
     DeviceRegisterRequest, DeviceRegisterResponse, DeviceModel,
-    DeviceListResponse, DeviceStatusResponse, GPIOStatusResponse
+    DeviceListResponse, DeviceStatusResponse, GPIOStatusResponse,
+    DeviceDeleteResponse
 )
 from hardware.gpio_controller import GPIOController
 from infrastructure.models import Device
@@ -103,6 +104,20 @@ class DeviceService:
             device_name=device.device_name,
             gpio_number=device.gpio_number,
             is_on=False
+        )
+    
+    def delete_device(self, device_id: str) -> DeviceDeleteResponse:
+        device = self.device_repository.find_by_id(device_id)
+        if not device:
+            raise HTTPException(status_code=404, detail="Device not found")
+        
+        success = self.device_repository.delete(device_id)
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to delete device")
+        
+        return DeviceDeleteResponse(
+            message="Device deleted successfully",
+            device_id=device_id
         )
 
 class GPIOService:

@@ -181,3 +181,34 @@ def test_gpio_operations(client):
     data = response.json()
     assert data["gpio_number"] == 18
     assert data["is_on"] == False
+
+def test_delete_device_success(client, test_db):
+    """デバイス削除成功のテスト"""
+    # テストデバイスを作成
+    device = Device(
+        device_id="test-device",
+        device_name="Test Device",
+        gpio_number=18,
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    test_db.add(device)
+    test_db.commit()
+    
+    # 実行
+    response = client.delete("/device/test-device")
+    
+    # 検証
+    assert response.status_code == 200
+    data = response.json()
+    assert data["message"] == "Device deleted successfully"
+    assert data["device_id"] == "test-device"
+
+def test_delete_device_not_found(client):
+    """デバイス削除（デバイスが存在しない）のテスト"""
+    # 実行
+    response = client.delete("/device/non-existent")
+    
+    # 検証
+    assert response.status_code == 404
+    assert "Device not found" in response.json()["detail"]

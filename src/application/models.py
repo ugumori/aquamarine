@@ -33,3 +33,7 @@ class DeviceStatusResponse(BaseModel):
 class GPIOStatusResponse(BaseModel):
     gpio_number: int
     is_on: bool
+
+class DeviceDeleteResponse(BaseModel):
+    message: str
+    device_id: str

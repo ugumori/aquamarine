@@ -29,3 +29,11 @@ class SQLAlchemyDeviceRepository(DeviceRepository):
         if device:
             device.updated_at = datetime.now()
             self.session.commit()
+
+    def delete(self, device_id: str) -> bool:
+        device = self.session.query(Device).filter(Device.device_id == device_id).first()
+        if device:
+            self.session.delete(device)
+            self.session.commit()
+            return True
+        return False

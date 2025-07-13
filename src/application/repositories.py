@@ -18,3 +18,7 @@ class DeviceRepository(ABC):
     @abstractmethod
     def update_timestamp(self, device_id: str) -> None:
         pass
+    
+    @abstractmethod
+    def delete(self, device_id: str) -> bool:
+        pass
