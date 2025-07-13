@@ -1,7 +1,7 @@
 import pytest
 from fastapi import HTTPException
 from application.services import DeviceService, GPIOService
-from application.models import DeviceRegisterRequest
+from application.models import DeviceRegisterRequest, DeviceUpdateRequest
 from infrastructure.models import Device
 from infrastructure.repositories import SQLAlchemyDeviceRepository
 from hardware.gpio_controller import MockGPIOController
@@ -154,3 +154,126 @@ def test_gpio_service_get_status(gpio_service, gpio_controller):
     # 検証
     assert response.gpio_number == 18
     assert response.is_on == True
+
+def test_delete_device_success(device_service, device_repository):
+    """デバイス削除成功のテスト"""
+    # デバイスを作成
+    device_repository.create("test-device", "Test Device", 18)
+    
+    # 実行
+    response = device_service.delete_device("test-device")
+    
+    # 検証
+    assert response.message == "Device deleted successfully"
+    assert response.device_id == "test-device"
+    
+    # デバイスが削除されたことを確認
+    deleted_device = device_repository.find_by_id("test-device")
+    assert deleted_device is None
+
+def test_delete_device_not_found(device_service):
+    """デバイス削除（デバイスが存在しない）のテスト"""
+    # 実行と検証
+    with pytest.raises(HTTPException) as exc_info:
+        device_service.delete_device("non-existent-device")
+    
+    assert exc_info.value.status_code == 404
+    assert "Device not found" in str(exc_info.value.detail)
+
+def test_update_device_name_only(device_service, device_repository):
+    """デバイス名のみ更新のテスト"""
+    # デバイスを作成
+    device_repository.create("test-device", "Original Device", 18)
+    
+    # 実行
+    request = DeviceUpdateRequest(device_name="Updated Device")
+    response = device_service.update_device("test-device", request)
+    
+    # 検証
+    assert response.device_name == "Updated Device"
+    assert response.gpio_number == 18  # GPIO番号は変更されない
+    assert response.device_id == "test-device"
+
+def test_update_device_gpio_only(device_service, device_repository):
+    """GPIO番号のみ更新のテスト"""
+    # デバイスを作成
+    device_repository.create("test-device", "Test Device", 18)
+    
+    # 実行
+    request = DeviceUpdateRequest(gpio_number=19)
+    response = device_service.update_device("test-device", request)
+    
+    # 検証
+    assert response.device_name == "Test Device"  # デバイス名は変更されない
+    assert response.gpio_number == 19
+    assert response.device_id == "test-device"
+
+def test_update_device_both_name_and_gpio(device_service, device_repository):
+    """デバイス名とGPIO番号両方更新のテスト"""
+    # デバイスを作成
+    device_repository.create("test-device", "Original Device", 18)
+    
+    # 実行
+    request = DeviceUpdateRequest(device_name="Updated Device", gpio_number=20)
+    response = device_service.update_device("test-device", request)
+    
+    # 検証
+    assert response.device_name == "Updated Device"
+    assert response.gpio_number == 20
+    assert response.device_id == "test-device"
+
+def test_update_device_no_parameters(device_service, device_repository):
+    """更新パラメータなしのテスト"""
+    # デバイスを作成
+    device_repository.create("test-device", "Test Device", 18)
+    
+    # 実行と検証
+    request = DeviceUpdateRequest()
+    with pytest.raises(HTTPException) as exc_info:
+        device_service.update_device("test-device", request)
+    
+    assert exc_info.value.status_code == 400
+    assert "No update parameters provided" in str(exc_info.value.detail)
+
+def test_update_device_not_found(device_service):
+    """存在しないデバイス更新のテスト"""
+    # 実行と検証
+    request = DeviceUpdateRequest(device_name="Updated Device")
+    with pytest.raises(HTTPException) as exc_info:
+        device_service.update_device("non-existent", request)
+    
+    assert exc_info.value.status_code == 404
+    assert "Device not found" in str(exc_info.value.detail)
+
+def test_update_device_gpio_conflict(device_service, device_repository):
+    """GPIO競合エラーのテスト"""
+    # 既存デバイスを作成
+    device_repository.create("existing-device", "Existing Device", 19)
+    # 更新対象デバイスを作成
+    device_repository.create("target-device", "Target Device", 18)
+    
+    # 実行と検証（既存のGPIO 19に変更しようとする）
+    request = DeviceUpdateRequest(gpio_number=19)
+    with pytest.raises(HTTPException) as exc_info:
+        device_service.update_device("target-device", request)
+    
+    assert exc_info.value.status_code == 400
+    assert "GPIO 19 is already in use" in str(exc_info.value.detail)
+
+def test_turn_device_on_not_found(device_service):
+    """存在しないデバイスのON操作のテスト"""
+    # 実行と検証
+    with pytest.raises(HTTPException) as exc_info:
+        device_service.turn_device_on("non-existent-device")
+    
+    assert exc_info.value.status_code == 404
+    assert "Device not found" in str(exc_info.value.detail)
+
+def test_turn_device_off_not_found(device_service):
+    """存在しないデバイスのOFF操作のテスト"""
+    # 実行と検証
+    with pytest.raises(HTTPException) as exc_info:
+        device_service.turn_device_off("non-existent-device")
+    
+    assert exc_info.value.status_code == 404
+    assert "Device not found" in str(exc_info.value.detail)
