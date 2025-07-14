@@ -47,7 +47,7 @@ dev = [
 ]
 
 [project.scripts]
-aquamarine = "aquamarine:main"
+aquamarine = "aquamarine.aquamarine:main"
 
 [project.urls]
 bugs = "https://github.com/ugumori/aquamarine/issues"
@@ -55,9 +55,7 @@ changelog = "https://github.com/ugumori/aquamarine/blob/master/changelog.md"
 homepage = "https://github.com/ugumori/aquamarine"
 
 [tool.setuptools]
-packages = ["infrastructure", "application", "presentation", "hardware", "log"]
 package-dir = {"" = "src"}
-py-modules = ["aquamarine"]
 
 [tool.setuptools.package-data]
 "*" = ["*.*"]
