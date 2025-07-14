@@ -8,19 +8,13 @@ from application.models import (
 )
 from infrastructure.database import get_db
 from infrastructure.repositories import SQLAlchemyDeviceRepository
-from hardware.gpio_controller import RaspberryPiGPIOController, MockGPIOController
+from hardware.gpio_factory import create_gpio_controller
 import os
 
 app = FastAPI(title="Aquamarine IoT API", version="1.0.0")
 
-# GPIO Controller の選択
-def get_gpio_controller():
-    if os.getenv("ENVIRONMENT") == "test":
-        return MockGPIOController()
-    else:
-        return RaspberryPiGPIOController()
 
-gpio_controller = get_gpio_controller()
+gpio_controller = create_gpio_controller()
 
 def get_device_service(db: Session = Depends(get_db)) -> DeviceService:
     device_repository = SQLAlchemyDeviceRepository(db)

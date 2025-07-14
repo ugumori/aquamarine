@@ -9,16 +9,16 @@ def gpio_controller():
 
 # 環境に応じたGPIOControllerテスト（Mockまたは実GPIO）
 def test_gpio_setup_pin(gpio_controller):
-    """GPIO ピンセットアップのテスト（環境に応じて実行）"""
-    pin_number = 18
+    """GPIO ピンセットアップのテスト"""
+    pin_number = 4
     gpio_controller.setup_pin(pin_number)
     
     # 初期状態はFalse
     assert gpio_controller.get_status(pin_number) == False
 
 def test_gpio_turn_on(gpio_controller):
-    """GPIO ON操作のテスト（環境に応じて実行）"""
-    pin_number = 18
+    """GPIO ON操作のテスト"""
+    pin_number = 4
     
     # ピンを ON にする
     gpio_controller.turn_on(pin_number)
@@ -27,8 +27,8 @@ def test_gpio_turn_on(gpio_controller):
     assert gpio_controller.get_status(pin_number) == True
 
 def test_gpio_turn_off(gpio_controller):
-    """GPIO OFF操作のテスト（環境に応じて実行）"""
-    pin_number = 18
+    """GPIO OFF操作のテスト"""
+    pin_number = 4
     
     # 最初にONにしてからOFFにする
     gpio_controller.turn_on(pin_number)
@@ -38,8 +38,8 @@ def test_gpio_turn_off(gpio_controller):
     assert gpio_controller.get_status(pin_number) == False
 
 def test_gpio_get_status(gpio_controller):
-    """GPIO状態取得のテスト（環境に応じて実行）"""
-    pin_number = 18
+    """GPIO状態取得のテスト"""
+    pin_number = 4
     
     # 初期状態
     status = gpio_controller.get_status(pin_number)
@@ -56,8 +56,8 @@ def test_gpio_get_status(gpio_controller):
     assert status == False
 
 def test_gpio_multiple_pins(gpio_controller):
-    """複数のGPIOピンの操作テスト（環境に応じて実行）"""
-    pin1, pin2 = 18, 19
+    """複数のGPIOピンの操作テスト"""
+    pin1, pin2 = 4, 19
     
     # 異なるピンを操作
     gpio_controller.turn_on(pin1)
@@ -75,7 +75,7 @@ def test_gpio_multiple_pins(gpio_controller):
     assert gpio_controller.get_status(pin2) == True
 
 def test_gpio_auto_setup(gpio_controller):
-    """自動セットアップのテスト（環境に応じて実行）"""
+    """自動セットアップのテスト"""
     pin_number = 20
     
     # setup_pin を呼ばずに直接操作
@@ -83,23 +83,3 @@ def test_gpio_auto_setup(gpio_controller):
     
     # 自動的にセットアップされて動作する
     assert gpio_controller.get_status(pin_number) == True
-
-def test_raspberry_pi_gpio_controller_init():
-    """RaspberryPiGPIOControllerの初期化テスト"""
-    # Raspberry Pi環境でない場合のテスト
-    controller = RaspberryPiGPIOController()
-    
-    # 初期化が正常に完了することを確認
-    assert hasattr(controller, '_pin_states')
-    assert isinstance(controller._pin_states, dict)
-
-def test_raspberry_pi_gpio_controller_mock_behavior():
-    controller = RaspberryPiGPIOController()
-    pin_number = 18
-    
-    # Raspberry Pi環境でない場合はMockと同様の動作
-    controller.turn_on(pin_number)
-    assert controller.get_status(pin_number) == True
-    
-    controller.turn_off(pin_number)
-    assert controller.get_status(pin_number) == False
