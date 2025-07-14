@@ -1,5 +1,7 @@
 import os
 from abc import ABC, abstractmethod
+from .gpio_platform import is_raspberry_pi
+from log import logger
 
 class GPIOController(ABC):
     @abstractmethod
@@ -22,23 +24,17 @@ class RaspberryPiGPIOController(GPIOController):
     def __init__(self):
         self._pin_states = {}
         # 実際のRaspberry Pi環境でのみGPIOライブラリを使用
-        self._is_raspberry_pi = self._check_raspberry_pi()
+        self._is_raspberry_pi = is_raspberry_pi()
         if self._is_raspberry_pi:
+            logger.info(f"_is_raspberry_pi: {self._is_raspberry_pi}")
             try:
                 import RPi.GPIO as GPIO
                 self._GPIO = GPIO
                 self._GPIO.setmode(GPIO.BCM)
                 self._GPIO.setwarnings(False)
             except ImportError:
+                logger.info(f"ImportError発生")
                 self._is_raspberry_pi = False
-    
-    def _check_raspberry_pi(self) -> bool:
-        try:
-            with open('/proc/cpuinfo', 'r') as f:
-                cpuinfo = f.read()
-            return 'BCM' in cpuinfo or 'Raspberry Pi' in cpuinfo
-        except FileNotFoundError:
-            return False
     
     def setup_pin(self, pin_number: int) -> None:
         if self._is_raspberry_pi:
@@ -46,6 +42,7 @@ class RaspberryPiGPIOController(GPIOController):
         self._pin_states[pin_number] = False
     
     def turn_on(self, pin_number: int) -> None:
+        logger.info(f"_is_raspberry_pi: {self._is_raspberry_pi}")
         if pin_number not in self._pin_states:
             self.setup_pin(pin_number)
         
@@ -54,6 +51,7 @@ class RaspberryPiGPIOController(GPIOController):
         self._pin_states[pin_number] = True
     
     def turn_off(self, pin_number: int) -> None:
+        logger.info(f"_is_raspberry_pi: {self._is_raspberry_pi}")
         if pin_number not in self._pin_states:
             self.setup_pin(pin_number)
         
