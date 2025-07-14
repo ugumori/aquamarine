@@ -8,3 +8,4 @@ pydantic==2.6.1
 python-multipart==0.0.9 
 alembic==1.13.0
 httpx==0.28.1
+RPi.GPIO==0.7.1

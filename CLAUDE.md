@@ -56,7 +56,7 @@ alembic revision --autogenerate -m "description"
 ### アプリケーション起動
 ```bash
 # メインアプリケーション起動
-python -m src.main
+PYTHONPATH=src python -m aquamarine
 
 # または
 aquamarine
@@ -82,7 +82,6 @@ aquamarine
 - **言語**: Python 3.8+
 - **Webフレームワーク**: FastAPI
 - **データベース**: sqlite3 + SQLAlchemy
-- **マイグレーション**: Alembic 1.13.0
 - **非同期処理**: 使用しない（同期処理に統一）
 - **デプロイ**: systemd + pip/venv
 
@@ -102,7 +101,7 @@ DB_NAME=iot_app
 
 - **デバイス状態管理**: `is_on`はハードウェアの実際の状態と一致させる、DBに永続化しない
 - **エラーハンドリング**: 404 (Not Found), 400 (Bad Request) を適切に使用
-- **セキュリティ**: 開発用途のため localhost:8080 で起動
+- **セキュリティ**: 開発用途のため 0.0.0.0:8080 で起動
 - **AWS連携**: 将来の拡張用途、現在は具体的な利用なし
 
 ## 開発時の注意事項
