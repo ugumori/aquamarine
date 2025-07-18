@@ -47,7 +47,7 @@ dev = [
 ]
 
 [project.scripts]
-aquamarine = "aquamarine.aquamarine:main"
+aquamarine = "aquamarine:main"
 
 [project.urls]
 bugs = "https://github.com/ugumori/aquamarine/issues"
