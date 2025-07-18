@@ -60,6 +60,9 @@ class SQLAlchemyScheduleRepository(ScheduleRepository):
         self.session.refresh(schedule)
         return schedule
     
+    def find_all(self) -> List[Schedule]:
+        return self.session.query(Schedule).all()
+    
     def find_by_device_id(self, device_id: str) -> List[Schedule]:
         return self.session.query(Schedule).filter(
             Schedule.device_id == device_id

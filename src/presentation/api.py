@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy.orm import Session
-from application.services import DeviceService, GPIOService, ScheduleService
+from application.services import DeviceService, GPIOService, ScheduleService, ScheduleExecutorService
 from application.models import (
     DeviceRegisterRequest, DeviceRegisterResponse, DeviceListResponse,
     DeviceStatusResponse, GPIOStatusResponse, DeviceDeleteResponse,
@@ -11,6 +11,7 @@ from infrastructure.database import get_db
 from infrastructure.repositories import SQLAlchemyDeviceRepository, SQLAlchemyScheduleRepository
 from hardware.gpio_factory import create_gpio_controller
 import os
+from aquamarine import schedule_executor
 
 app = FastAPI(title="Aquamarine IoT API", version="1.0.0")
 
@@ -24,10 +25,14 @@ def get_device_service(db: Session = Depends(get_db)) -> DeviceService:
 def get_gpio_service() -> GPIOService:
     return GPIOService(gpio_controller)
 
-def get_schedule_service(db: Session = Depends(get_db)) -> ScheduleService:
+def get_schedule_executor_service() -> ScheduleExecutorService:
+    """ScheduleExecutorServiceを取得"""
+    return schedule_executor
+
+def get_schedule_service(db: Session = Depends(get_db), schedule_executor: ScheduleExecutorService = Depends(get_schedule_executor_service)) -> ScheduleService:
     schedule_repository = SQLAlchemyScheduleRepository(db)
     device_repository = SQLAlchemyDeviceRepository(db)
-    return ScheduleService(schedule_repository, device_repository)
+    return ScheduleService(schedule_repository, device_repository, schedule_executor)
 
 @app.post("/device/register", response_model=DeviceRegisterResponse)
 def register_device(

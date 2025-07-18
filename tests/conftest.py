@@ -1,9 +1,11 @@
 import pytest
 import os
+from unittest.mock import Mock
 from fastapi.testclient import TestClient
 from presentation.api import app
 from infrastructure.database import create_tables, SessionLocal
 from infrastructure.models import Device, Schedule
+from application.services import ScheduleExecutorService
 
 # テスト環境でMockGPIOControllerを使用
 os.environ["ENVIRONMENT"] = "test"
@@ -35,5 +37,10 @@ def test_db():
 @pytest.fixture
 def client():
     """FastAPIテストクライアント"""
+    # テスト用のScheduleExecutorServiceモックを設定
+    import aquamarine
+    mock_schedule_executor = Mock(spec=ScheduleExecutorService)
+    aquamarine.schedule_executor = mock_schedule_executor
+    
     with TestClient(app) as client:
         yield client

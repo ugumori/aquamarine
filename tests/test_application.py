@@ -1,6 +1,7 @@
 import pytest
+from unittest.mock import Mock, patch
 from fastapi import HTTPException
-from application.services import DeviceService, GPIOService, ScheduleService
+from application.services import DeviceService, GPIOService, ScheduleService, ScheduleExecutorService
 from application.models import DeviceRegisterRequest, DeviceUpdateRequest, ScheduleCreateRequest
 from infrastructure.models import Device, Schedule
 from infrastructure.repositories import SQLAlchemyDeviceRepository, SQLAlchemyScheduleRepository
@@ -33,9 +34,21 @@ def schedule_repository(test_db):
     return SQLAlchemyScheduleRepository(test_db)
 
 @pytest.fixture
+def schedule_executor_service():
+    """ScheduleExecutorServiceのモックフィクスチャ"""
+    return Mock(spec=ScheduleExecutorService)
+
+@pytest.fixture
 def schedule_service(schedule_repository, device_repository):
     """ScheduleServiceのフィクスチャ"""
     return ScheduleService(schedule_repository, device_repository)
+
+@pytest.fixture
+def schedule_service_with_executor(schedule_repository, device_repository, schedule_executor_service):
+    """ScheduleExecutorService付きScheduleServiceのフィクスチャ"""
+    service = ScheduleService(schedule_repository, device_repository)
+    service.schedule_executor = schedule_executor_service
+    return service
 
 def test_register_device_success(device_service):
     """デバイス登録成功のテスト"""
@@ -421,3 +434,85 @@ def test_delete_schedule_not_found(schedule_service):
     
     assert exc_info.value.status_code == 404
     assert "Schedule not found" in str(exc_info.value.detail)
+
+
+class TestScheduleServiceWithExecutor:
+    """ScheduleExecutorServiceと連携するScheduleServiceのテスト"""
+    
+    def test_create_schedule_with_executor_integration(self, schedule_service_with_executor, device_repository):
+        """スケジュール作成時にScheduleExecutorServiceに追加されることを確認"""
+        # 依存するデバイスを作成
+        device_repository.create("test-device", "Test Device", 18)
+        
+        # テストデータ
+        request = ScheduleCreateRequest(schedule="14:30", is_on=True)
+        
+        # 実行
+        response = schedule_service_with_executor.create_schedule("test-device", request)
+        
+        # 検証
+        assert response.schedule == "14:30"
+        assert response.is_on == True
+        
+        # ScheduleExecutorServiceのadd_scheduleが呼ばれたことを確認
+        schedule_service_with_executor.schedule_executor.add_schedule.assert_called_once_with(
+            response.schedule_id,
+            "test-device", 
+            "14:30",
+            True
+        )
+    
+    def test_delete_schedule_with_executor_integration(self, schedule_service_with_executor, device_repository):
+        """スケジュール削除時にScheduleExecutorServiceからも削除されることを確認"""
+        # 依存するデバイスを作成
+        device_repository.create("test-device", "Test Device", 18)
+        
+        # スケジュールを作成
+        request = ScheduleCreateRequest(schedule="10:30", is_on=True)
+        created_schedule = schedule_service_with_executor.create_schedule("test-device", request)
+        
+        # 実行
+        schedule_service_with_executor.delete_schedule(created_schedule.schedule_id)
+        
+        # 検証
+        # ScheduleExecutorServiceのremove_scheduleが呼ばれたことを確認
+        schedule_service_with_executor.schedule_executor.remove_schedule.assert_called_with(
+            created_schedule.schedule_id
+        )
+    
+    def test_create_schedule_executor_error_handling(self, schedule_service_with_executor, device_repository):
+        """ScheduleExecutorServiceでエラーが発生した場合の処理を確認"""
+        # 依存するデバイスを作成
+        device_repository.create("test-device", "Test Device", 18)
+        
+        # ScheduleExecutorServiceでエラーが発生するよう設定
+        schedule_service_with_executor.schedule_executor.add_schedule.side_effect = Exception("Executor error")
+        
+        # テストデータ
+        request = ScheduleCreateRequest(schedule="14:30", is_on=True)
+        
+        # 実行と検証（エラーが発生してもHTTPExceptionとして適切に処理される）
+        with pytest.raises(HTTPException) as exc_info:
+            schedule_service_with_executor.create_schedule("test-device", request)
+        
+        assert exc_info.value.status_code == 500
+        assert "Failed to add schedule to executor" in str(exc_info.value.detail)
+    
+    def test_delete_schedule_executor_error_handling(self, schedule_service_with_executor, device_repository):
+        """ScheduleExecutorServiceの削除でエラーが発生した場合の処理を確認"""
+        # 依存するデバイスを作成
+        device_repository.create("test-device", "Test Device", 18)
+        
+        # スケジュールを作成
+        request = ScheduleCreateRequest(schedule="10:30", is_on=True)
+        created_schedule = schedule_service_with_executor.create_schedule("test-device", request)
+        
+        # ScheduleExecutorServiceでエラーが発生するよう設定
+        schedule_service_with_executor.schedule_executor.remove_schedule.side_effect = Exception("Executor error")
+        
+        # 実行と検証（エラーが発生してもHTTPExceptionとして適切に処理される）
+        with pytest.raises(HTTPException) as exc_info:
+            schedule_service_with_executor.delete_schedule(created_schedule.schedule_id)
+        
+        assert exc_info.value.status_code == 500
+        assert "Failed to remove schedule from executor" in str(exc_info.value.detail)

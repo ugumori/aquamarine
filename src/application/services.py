@@ -1,7 +1,12 @@
 import uuid
 import re
+import logging
 from typing import List
+from datetime import datetime
 from fastapi import HTTPException
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
+import pytz
 from application.repositories import DeviceRepository, ScheduleRepository
 from application.models import (
     DeviceRegisterRequest, DeviceRegisterResponse, DeviceModel,
@@ -12,6 +17,8 @@ from application.models import (
 )
 from hardware.gpio_controller import GPIOController
 from infrastructure.models import Device, Schedule
+
+logger = logging.getLogger(__name__)
 
 class DeviceService:
     def __init__(self, device_repository: DeviceRepository, gpio_controller: GPIOController):
@@ -187,9 +194,10 @@ class GPIOService:
         return GPIOStatusResponse(gpio_number=gpio_number, is_on=is_on)
 
 class ScheduleService:
-    def __init__(self, schedule_repository: ScheduleRepository, device_repository: DeviceRepository):
+    def __init__(self, schedule_repository: ScheduleRepository, device_repository: DeviceRepository, schedule_executor: 'ScheduleExecutorService' = None):
         self.schedule_repository = schedule_repository
         self.device_repository = device_repository
+        self.schedule_executor = schedule_executor
     
     def _validate_time_format(self, time_str: str) -> bool:
         """時間形式（HH:MM）のバリデーション"""
@@ -216,6 +224,20 @@ class ScheduleService:
         )
         
         saved_schedule = self.schedule_repository.save(schedule)
+        
+        # ScheduleExecutorServiceにスケジュールを追加
+        if self.schedule_executor:
+            try:
+                self.schedule_executor.add_schedule(
+                    saved_schedule.schedule_id,
+                    saved_schedule.device_id,
+                    saved_schedule.schedule,
+                    saved_schedule.is_on
+                )
+            except Exception as e:
+                # スケジューラー追加に失敗した場合、DBからも削除してロールバック
+                self.schedule_repository.delete(saved_schedule.schedule_id)
+                raise HTTPException(status_code=500, detail="Failed to add schedule to executor")
         
         return ScheduleCreateResponse(
             schedule_id=saved_schedule.schedule_id,
@@ -253,3 +275,101 @@ class ScheduleService:
         success = self.schedule_repository.delete(schedule_id)
         if not success:
             raise HTTPException(status_code=500, detail="Failed to delete schedule")
+        
+        # ScheduleExecutorServiceからスケジュールを削除
+        if self.schedule_executor:
+            try:
+                self.schedule_executor.remove_schedule(schedule_id)
+            except Exception as e:
+                # スケジューラーからの削除に失敗してもログを出力するだけ（DBからは既に削除済み）
+                logger.warning(f"Failed to remove schedule {schedule_id} from executor: {str(e)}")
+                raise HTTPException(status_code=500, detail="Failed to remove schedule from executor")
+
+
+class ScheduleExecutorService:
+    def __init__(self, device_repository: DeviceRepository, gpio_controller: GPIOController):
+        self.device_repository = device_repository
+        self.gpio_controller = gpio_controller
+        self.scheduler = BackgroundScheduler(timezone=pytz.timezone('Asia/Tokyo'))
+    
+    def start(self) -> None:
+        """スケジューラーを開始"""
+        if not self.scheduler.running:
+            self.scheduler.start()
+            logger.info("Schedule executor started")
+    
+    def add_schedule(self, schedule_id: str, device_id: str, schedule_time: str, is_on: bool) -> None:
+        """スケジュールを追加"""
+        # デバイスの存在確認
+        device = self.device_repository.find_by_id(device_id)
+        if not device:
+            raise ValueError("Device not found")
+        
+        # 時刻形式の検証とパース
+        hour, minute = self._parse_time(schedule_time)
+        
+        # 毎日実行するスケジュールを追加
+        trigger = CronTrigger(hour=hour, minute=minute, timezone=pytz.timezone('Asia/Tokyo'))
+        
+        self.scheduler.add_job(
+            func=self._execute_schedule,
+            trigger=trigger,
+            id=schedule_id,
+            args=[device_id, device.gpio_number, is_on],
+            replace_existing=True
+        )
+        
+        logger.info(f"Schedule added: {schedule_id}, device: {device.device_name}, "
+                   f"time: {schedule_time}, action: {'ON' if is_on else 'OFF'}")
+    
+    def remove_schedule(self, schedule_id: str) -> None:
+        """スケジュールを削除"""
+        try:
+            self.scheduler.remove_job(schedule_id)
+            logger.info(f"Schedule removed: {schedule_id}")
+        except Exception:
+            raise ValueError("Schedule not found")
+    
+    def _execute_schedule(self, device_id: str, gpio_number: int, is_on: bool) -> None:
+        """スケジュール実行"""
+        try:
+            # デバイス情報を取得（ログ用）
+            device = self.device_repository.find_by_id(device_id)
+            device_name = device.device_name if device else "Unknown"
+            
+            # GPIO制御実行
+            if is_on:
+                self.gpio_controller.turn_on(gpio_number)
+            else:
+                self.gpio_controller.turn_off(gpio_number)
+            
+            # 実行ログ
+            current_time = datetime.now(pytz.timezone('Asia/Tokyo')).strftime('%Y-%m-%d %H:%M:%S JST')
+            logger.info(f"Schedule executed: device={device_name}, gpio={gpio_number}, "
+                       f"action={'ON' if is_on else 'OFF'}, time={current_time}")
+            
+        except Exception as e:
+            # エラーログ（WARNING レベル）
+            device = self.device_repository.find_by_id(device_id)
+            device_name = device.device_name if device else "Unknown"
+            current_time = datetime.now(pytz.timezone('Asia/Tokyo')).strftime('%Y-%m-%d %H:%M:%S JST')
+            
+            logger.warning(f"GPIO control failed: device={device_name}, gpio={gpio_number}, "
+                          f"action={'ON' if is_on else 'OFF'}, time={current_time}, error={str(e)}")
+    
+    def _parse_time(self, time_str: str) -> tuple[int, int]:
+        """時刻文字列をパースして時と分を返す"""
+        if not time_str:
+            raise ValueError("Invalid time format: empty string")
+        
+        # HH:MM形式の正規表現
+        pattern = r'^([01]?[0-9]|2[0-3]):([0-5]?[0-9])$'
+        match = re.match(pattern, time_str)
+        
+        if not match:
+            raise ValueError(f"Invalid time format: {time_str}. Use HH:MM format (00:00-23:59)")
+        
+        hour = int(match.group(1))
+        minute = int(match.group(2))
+        
+        return hour, minute

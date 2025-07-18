@@ -33,6 +33,10 @@ class ScheduleRepository(ABC):
         pass
     
     @abstractmethod
+    def find_all(self) -> List[Schedule]:
+        pass
+    
+    @abstractmethod
     def find_by_device_id(self, device_id: str) -> List[Schedule]:
         pass
     
