@@ -1,9 +1,9 @@
 import pytest
 from fastapi import HTTPException
-from application.services import DeviceService, GPIOService
-from application.models import DeviceRegisterRequest, DeviceUpdateRequest
-from infrastructure.models import Device
-from infrastructure.repositories import SQLAlchemyDeviceRepository
+from application.services import DeviceService, GPIOService, ScheduleService
+from application.models import DeviceRegisterRequest, DeviceUpdateRequest, ScheduleCreateRequest
+from infrastructure.models import Device, Schedule
+from infrastructure.repositories import SQLAlchemyDeviceRepository, SQLAlchemyScheduleRepository
 from hardware.gpio_controller import MockGPIOController
 from datetime import datetime
 
@@ -26,6 +26,16 @@ def device_service(device_repository, gpio_controller):
 def gpio_service(gpio_controller):
     """GPIOServiceのフィクスチャ"""
     return GPIOService(gpio_controller)
+
+@pytest.fixture
+def schedule_repository(test_db):
+    """ScheduleRepositoryのフィクスチャ"""
+    return SQLAlchemyScheduleRepository(test_db)
+
+@pytest.fixture
+def schedule_service(schedule_repository, device_repository):
+    """ScheduleServiceのフィクスチャ"""
+    return ScheduleService(schedule_repository, device_repository)
 
 def test_register_device_success(device_service):
     """デバイス登録成功のテスト"""
@@ -277,3 +287,137 @@ def test_turn_device_off_not_found(device_service):
     
     assert exc_info.value.status_code == 404
     assert "Device not found" in str(exc_info.value.detail)
+
+# スケジュールサービスのテスト
+def test_create_schedule_success(schedule_service, device_repository):
+    """スケジュール作成成功のテスト"""
+    # 依存するデバイスを作成
+    device_repository.create("test-device", "Test Device", 18)
+    
+    # テストデータ
+    request = ScheduleCreateRequest(schedule="10:30", is_on=True)
+    
+    # 実行
+    response = schedule_service.create_schedule("test-device", request)
+    
+    # 検証
+    assert response.schedule == "10:30"
+    assert response.is_on == True
+    assert response.schedule_id is not None
+    assert response.device_id == "test-device"
+    assert response.created_at is not None
+
+def test_create_schedule_device_not_found(schedule_service):
+    """存在しないデバイスへのスケジュール作成のテスト"""
+    # テストデータ
+    request = ScheduleCreateRequest(schedule="10:30", is_on=True)
+    
+    # 実行と検証
+    with pytest.raises(HTTPException) as exc_info:
+        schedule_service.create_schedule("non-existent-device", request)
+    
+    assert exc_info.value.status_code == 400
+    assert "Device not found" in str(exc_info.value.detail)
+
+def test_create_schedule_invalid_time_format(schedule_service, device_repository):
+    """不正な時間形式のスケジュール作成のテスト"""
+    # 依存するデバイスを作成
+    device_repository.create("test-device", "Test Device", 18)
+    
+    # 不正な時間形式のテストケース
+    invalid_times = ["25:00", "12:60", "abc:de", "12", "12:30:45", "-1:30"]
+    
+    for invalid_time in invalid_times:
+        request = ScheduleCreateRequest(schedule=invalid_time, is_on=True)
+        
+        # 実行と検証
+        with pytest.raises(HTTPException) as exc_info:
+            schedule_service.create_schedule("test-device", request)
+        
+        assert exc_info.value.status_code == 400
+        assert "Invalid time format" in str(exc_info.value.detail)
+
+def test_create_schedule_valid_time_formats(schedule_service, device_repository):
+    """有効な時間形式のスケジュール作成のテスト"""
+    # 依存するデバイスを作成
+    device_repository.create("test-device", "Test Device", 18)
+    
+    # 有効な時間形式のテストケース
+    valid_times = ["00:00", "12:30", "23:59", "9:05", "01:01"]
+    
+    for valid_time in valid_times:
+        request = ScheduleCreateRequest(schedule=valid_time, is_on=True)
+        
+        # 実行
+        response = schedule_service.create_schedule("test-device", request)
+        
+        # 検証
+        assert response.schedule == valid_time
+        assert response.is_on == True
+
+def test_get_schedules_by_device_id_success(schedule_service, device_repository):
+    """デバイスIDによるスケジュール取得成功のテスト"""
+    # 依存するデバイスを作成
+    device_repository.create("test-device", "Test Device", 18)
+    
+    # スケジュールを作成
+    request1 = ScheduleCreateRequest(schedule="18:00", is_on=False)
+    request2 = ScheduleCreateRequest(schedule="10:00", is_on=True)
+    
+    schedule_service.create_schedule("test-device", request1)
+    schedule_service.create_schedule("test-device", request2)
+    
+    # 実行
+    response = schedule_service.get_schedules_by_device_id("test-device")
+    
+    # 検証（時間順でソートされている）
+    assert len(response.schedules) == 2
+    assert response.schedules[0].schedule == "10:00"
+    assert response.schedules[0].is_on == True
+    assert response.schedules[1].schedule == "18:00"
+    assert response.schedules[1].is_on == False
+
+def test_get_schedules_by_device_id_device_not_found(schedule_service):
+    """存在しないデバイスのスケジュール取得のテスト"""
+    # 実行と検証
+    with pytest.raises(HTTPException) as exc_info:
+        schedule_service.get_schedules_by_device_id("non-existent-device")
+    
+    assert exc_info.value.status_code == 404
+    assert "Device not found" in str(exc_info.value.detail)
+
+def test_get_schedules_by_device_id_empty_list(schedule_service, device_repository):
+    """スケジュールがないデバイスの取得のテスト"""
+    # 依存するデバイスを作成
+    device_repository.create("test-device", "Test Device", 18)
+    
+    # 実行
+    response = schedule_service.get_schedules_by_device_id("test-device")
+    
+    # 検証
+    assert len(response.schedules) == 0
+
+def test_delete_schedule_success(schedule_service, device_repository):
+    """スケジュール削除成功のテスト"""
+    # 依存するデバイスを作成
+    device_repository.create("test-device", "Test Device", 18)
+    
+    # スケジュールを作成
+    request = ScheduleCreateRequest(schedule="10:30", is_on=True)
+    created_schedule = schedule_service.create_schedule("test-device", request)
+    
+    # 実行
+    schedule_service.delete_schedule(created_schedule.schedule_id)
+    
+    # 検証（スケジュールが削除されたことを確認）
+    response = schedule_service.get_schedules_by_device_id("test-device")
+    assert len(response.schedules) == 0
+
+def test_delete_schedule_not_found(schedule_service):
+    """存在しないスケジュール削除のテスト"""
+    # 実行と検証
+    with pytest.raises(HTTPException) as exc_info:
+        schedule_service.delete_schedule("non-existent-schedule")
+    
+    assert exc_info.value.status_code == 404
+    assert "Schedule not found" in str(exc_info.value.detail)

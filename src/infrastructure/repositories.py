@@ -1,8 +1,8 @@
 from datetime import datetime
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from application.repositories import DeviceRepository
-from infrastructure.models import Device
+from application.repositories import DeviceRepository, ScheduleRepository
+from infrastructure.models import Device, Schedule
 
 class SQLAlchemyDeviceRepository(DeviceRepository):
     def __init__(self, session: Session):
@@ -46,6 +46,36 @@ class SQLAlchemyDeviceRepository(DeviceRepository):
             if gpio_number is not None:
                 device.gpio_number = gpio_number
             device.updated_at = datetime.now()
+            self.session.commit()
+            return True
+        return False
+
+class SQLAlchemyScheduleRepository(ScheduleRepository):
+    def __init__(self, session: Session):
+        self.session = session
+    
+    def save(self, schedule: Schedule) -> Schedule:
+        self.session.add(schedule)
+        self.session.commit()
+        self.session.refresh(schedule)
+        return schedule
+    
+    def find_by_device_id(self, device_id: str) -> List[Schedule]:
+        return self.session.query(Schedule).filter(
+            Schedule.device_id == device_id
+        ).order_by(Schedule.schedule).all()
+    
+    def find_by_id(self, schedule_id: str) -> Optional[Schedule]:
+        return self.session.query(Schedule).filter(
+            Schedule.schedule_id == schedule_id
+        ).first()
+    
+    def delete(self, schedule_id: str) -> bool:
+        schedule = self.session.query(Schedule).filter(
+            Schedule.schedule_id == schedule_id
+        ).first()
+        if schedule:
+            self.session.delete(schedule)
             self.session.commit()
             return True
         return False

@@ -1,4 +1,4 @@
-from infrastructure.models import Device
+from infrastructure.models import Device, Schedule
 from datetime import datetime
 
 def test_health_check(client):
@@ -346,3 +346,195 @@ def test_update_device_gpio_conflict(client, test_db):
     # 検証
     assert response.status_code == 400
     assert "GPIO 19 is already in use" in response.json()["detail"]
+
+# スケジュールAPIのテスト
+def test_create_schedule_success(client, test_db):
+    """スケジュール作成成功のテスト"""
+    # 依存するデバイスを作成
+    device = Device(
+        device_id="test-device",
+        device_name="Test Device",
+        gpio_number=18,
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    test_db.add(device)
+    test_db.commit()
+    
+    # テストデータ
+    schedule_data = {
+        "schedule": "10:30",
+        "is_on": True
+    }
+    
+    # 実行
+    response = client.post("/schedule/test-device", json=schedule_data)
+    
+    # 検証
+    assert response.status_code == 200
+    data = response.json()
+    assert data["schedule"] == "10:30"
+    assert data["is_on"] == True
+    assert data["device_id"] == "test-device"
+    assert "schedule_id" in data
+    assert "created_at" in data
+
+def test_create_schedule_device_not_found(client):
+    """存在しないデバイスへのスケジュール作成のテスト"""
+    # テストデータ
+    schedule_data = {
+        "schedule": "10:30",
+        "is_on": True
+    }
+    
+    # 実行
+    response = client.post("/schedule/non-existent", json=schedule_data)
+    
+    # 検証
+    assert response.status_code == 400
+    assert "Device not found" in response.json()["detail"]
+
+def test_create_schedule_invalid_time_format(client, test_db):
+    """不正な時間形式のスケジュール作成のテスト"""
+    # 依存するデバイスを作成
+    device = Device(
+        device_id="test-device",
+        device_name="Test Device",
+        gpio_number=18,
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    test_db.add(device)
+    test_db.commit()
+    
+    # 不正な時間形式のテストケース
+    invalid_times = ["25:00", "12:60", "abc:de", "12", "12:30:45"]
+    
+    for invalid_time in invalid_times:
+        schedule_data = {
+            "schedule": invalid_time,
+            "is_on": True
+        }
+        
+        # 実行
+        response = client.post("/schedule/test-device", json=schedule_data)
+        
+        # 検証
+        assert response.status_code == 400
+        assert "Invalid time format" in response.json()["detail"]
+
+def test_get_schedules_success(client, test_db):
+    """スケジュール取得成功のテスト"""
+    # 依存するデバイスを作成
+    device = Device(
+        device_id="test-device",
+        device_name="Test Device",
+        gpio_number=18,
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    test_db.add(device)
+    test_db.commit()
+    
+    # スケジュールを作成
+    schedule1 = Schedule(
+        schedule_id="schedule-1",
+        device_id="test-device",
+        schedule="18:00",
+        is_on=False,
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    schedule2 = Schedule(
+        schedule_id="schedule-2",
+        device_id="test-device",
+        schedule="10:00",
+        is_on=True,
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    test_db.add(schedule1)
+    test_db.add(schedule2)
+    test_db.commit()
+    
+    # 実行
+    response = client.get("/schedule/test-device")
+    
+    # 検証（時間順でソートされている）
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["schedules"]) == 2
+    assert data["schedules"][0]["schedule"] == "10:00"
+    assert data["schedules"][0]["is_on"] == True
+    assert data["schedules"][1]["schedule"] == "18:00"
+    assert data["schedules"][1]["is_on"] == False
+
+def test_get_schedules_device_not_found(client):
+    """存在しないデバイスのスケジュール取得のテスト"""
+    # 実行
+    response = client.get("/schedule/non-existent")
+    
+    # 検証
+    assert response.status_code == 404
+    assert "Device not found" in response.json()["detail"]
+
+def test_get_schedules_empty_list(client, test_db):
+    """スケジュールがないデバイスの取得のテスト"""
+    # 依存するデバイスを作成
+    device = Device(
+        device_id="test-device",
+        device_name="Test Device",
+        gpio_number=18,
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    test_db.add(device)
+    test_db.commit()
+    
+    # 実行
+    response = client.get("/schedule/test-device")
+    
+    # 検証
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["schedules"]) == 0
+
+def test_delete_schedule_success(client, test_db):
+    """スケジュール削除成功のテスト"""
+    # 依存するデバイスを作成
+    device = Device(
+        device_id="test-device",
+        device_name="Test Device",
+        gpio_number=18,
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    test_db.add(device)
+    test_db.commit()
+    
+    # スケジュールを作成
+    schedule = Schedule(
+        schedule_id="test-schedule",
+        device_id="test-device",
+        schedule="10:30",
+        is_on=True,
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    test_db.add(schedule)
+    test_db.commit()
+    
+    # 実行
+    response = client.delete("/schedule/test-schedule")
+    
+    # 検証
+    assert response.status_code == 204
+
+def test_delete_schedule_not_found(client):
+    """存在しないスケジュール削除のテスト"""
+    # 実行
+    response = client.delete("/schedule/non-existent")
+    
+    # 検証
+    assert response.status_code == 404
+    assert "Schedule not found" in response.json()["detail"]

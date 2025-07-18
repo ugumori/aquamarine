@@ -1,13 +1,14 @@
 from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy.orm import Session
-from application.services import DeviceService, GPIOService
+from application.services import DeviceService, GPIOService, ScheduleService
 from application.models import (
     DeviceRegisterRequest, DeviceRegisterResponse, DeviceListResponse,
     DeviceStatusResponse, GPIOStatusResponse, DeviceDeleteResponse,
-    DeviceUpdateRequest, DeviceUpdateResponse
+    DeviceUpdateRequest, DeviceUpdateResponse, ScheduleCreateRequest,
+    ScheduleCreateResponse, ScheduleListResponse
 )
 from infrastructure.database import get_db
-from infrastructure.repositories import SQLAlchemyDeviceRepository
+from infrastructure.repositories import SQLAlchemyDeviceRepository, SQLAlchemyScheduleRepository
 from hardware.gpio_factory import create_gpio_controller
 import os
 
@@ -22,6 +23,11 @@ def get_device_service(db: Session = Depends(get_db)) -> DeviceService:
 
 def get_gpio_service() -> GPIOService:
     return GPIOService(gpio_controller)
+
+def get_schedule_service(db: Session = Depends(get_db)) -> ScheduleService:
+    schedule_repository = SQLAlchemyScheduleRepository(db)
+    device_repository = SQLAlchemyDeviceRepository(db)
+    return ScheduleService(schedule_repository, device_repository)
 
 @app.post("/device/register", response_model=DeviceRegisterResponse)
 def register_device(
@@ -90,6 +96,28 @@ def get_gpio_status(
     service: GPIOService = Depends(get_gpio_service)
 ):
     return service.get_gpio_status(gpio_number)
+
+@app.post("/schedule/{device_id}", response_model=ScheduleCreateResponse)
+def create_schedule(
+    device_id: str,
+    request: ScheduleCreateRequest,
+    service: ScheduleService = Depends(get_schedule_service)
+):
+    return service.create_schedule(device_id, request)
+
+@app.get("/schedule/{device_id}", response_model=ScheduleListResponse)
+def get_schedules(
+    device_id: str,
+    service: ScheduleService = Depends(get_schedule_service)
+):
+    return service.get_schedules_by_device_id(device_id)
+
+@app.delete("/schedule/{schedule_id}", status_code=204)
+def delete_schedule(
+    schedule_id: str,
+    service: ScheduleService = Depends(get_schedule_service)
+):
+    service.delete_schedule(schedule_id)
 
 @app.get("/health")
 def health_check():

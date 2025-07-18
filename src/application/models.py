@@ -48,3 +48,22 @@ class DeviceUpdateResponse(BaseModel):
     gpio_number: int
     created_at: datetime
     updated_at: datetime
+
+class ScheduleCreateRequest(BaseModel):
+    schedule: str
+    is_on: bool
+
+class ScheduleModel(BaseModel):
+    schedule_id: str
+    schedule: str
+    is_on: bool
+
+class ScheduleCreateResponse(BaseModel):
+    schedule_id: str
+    device_id: str
+    schedule: str
+    is_on: bool
+    created_at: datetime
+
+class ScheduleListResponse(BaseModel):
+    schedules: List[ScheduleModel]

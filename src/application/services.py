@@ -1,14 +1,17 @@
 import uuid
+import re
 from typing import List
 from fastapi import HTTPException
-from application.repositories import DeviceRepository
+from application.repositories import DeviceRepository, ScheduleRepository
 from application.models import (
     DeviceRegisterRequest, DeviceRegisterResponse, DeviceModel,
     DeviceListResponse, DeviceStatusResponse, GPIOStatusResponse,
-    DeviceDeleteResponse, DeviceUpdateRequest, DeviceUpdateResponse
+    DeviceDeleteResponse, DeviceUpdateRequest, DeviceUpdateResponse,
+    ScheduleCreateRequest, ScheduleCreateResponse, ScheduleListResponse,
+    ScheduleModel
 )
 from hardware.gpio_controller import GPIOController
-from infrastructure.models import Device
+from infrastructure.models import Device, Schedule
 
 class DeviceService:
     def __init__(self, device_repository: DeviceRepository, gpio_controller: GPIOController):
@@ -182,3 +185,71 @@ class GPIOService:
     def get_gpio_status(self, gpio_number: int) -> GPIOStatusResponse:
         is_on = self.gpio_controller.get_status(gpio_number)
         return GPIOStatusResponse(gpio_number=gpio_number, is_on=is_on)
+
+class ScheduleService:
+    def __init__(self, schedule_repository: ScheduleRepository, device_repository: DeviceRepository):
+        self.schedule_repository = schedule_repository
+        self.device_repository = device_repository
+    
+    def _validate_time_format(self, time_str: str) -> bool:
+        """時間形式（HH:MM）のバリデーション"""
+        pattern = r'^([01]?[0-9]|2[0-3]):[0-5][0-9]$'
+        return re.match(pattern, time_str) is not None
+    
+    def create_schedule(self, device_id: str, request: ScheduleCreateRequest) -> ScheduleCreateResponse:
+        # デバイスが存在するかチェック
+        device = self.device_repository.find_by_id(device_id)
+        if not device:
+            raise HTTPException(status_code=400, detail="Device not found")
+        
+        # 時間形式のバリデーション
+        if not self._validate_time_format(request.schedule):
+            raise HTTPException(status_code=400, detail="Invalid time format. Use HH:MM format (00:00-23:59)")
+        
+        # スケジュールを作成
+        schedule_id = str(uuid.uuid4())
+        schedule = Schedule(
+            schedule_id=schedule_id,
+            device_id=device_id,
+            schedule=request.schedule,
+            is_on=request.is_on
+        )
+        
+        saved_schedule = self.schedule_repository.save(schedule)
+        
+        return ScheduleCreateResponse(
+            schedule_id=saved_schedule.schedule_id,
+            device_id=saved_schedule.device_id,
+            schedule=saved_schedule.schedule,
+            is_on=saved_schedule.is_on,
+            created_at=saved_schedule.created_at
+        )
+    
+    def get_schedules_by_device_id(self, device_id: str) -> ScheduleListResponse:
+        # デバイスが存在するかチェック
+        device = self.device_repository.find_by_id(device_id)
+        if not device:
+            raise HTTPException(status_code=404, detail="Device not found")
+        
+        schedules = self.schedule_repository.find_by_device_id(device_id)
+        schedule_models = []
+        
+        for schedule in schedules:
+            schedule_model = ScheduleModel(
+                schedule_id=schedule.schedule_id,
+                schedule=schedule.schedule,
+                is_on=schedule.is_on
+            )
+            schedule_models.append(schedule_model)
+        
+        return ScheduleListResponse(schedules=schedule_models)
+    
+    def delete_schedule(self, schedule_id: str) -> None:
+        # スケジュールが存在するかチェック
+        schedule = self.schedule_repository.find_by_id(schedule_id)
+        if not schedule:
+            raise HTTPException(status_code=404, detail="Schedule not found")
+        
+        success = self.schedule_repository.delete(schedule_id)
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to delete schedule")
